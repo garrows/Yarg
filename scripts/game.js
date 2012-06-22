@@ -42,6 +42,11 @@ drawLevel = function(dt) {
 	h = (canvas.height / 64),
 	ww = w * 0.8,
 	hh = h * 0.8;
+   
+   ctx.putImageData(mapBitmap, offset.x, offset.y);
+   ctx.fillStyle = 'black';
+   ctx.fillRect(64*w, 28*h, ww, hh);
+   /*
 	for (var x = 0; x < 128; x++) {
 		xx = x * w;
 		tx = x + offset.x;
@@ -68,6 +73,7 @@ drawLevel = function(dt) {
 			}
 		}
 	}
+   */
 };
 
 var lastTime = Date.now();
@@ -113,34 +119,56 @@ var animFrame = window.requestAnimationFrame ||
    }
 }
 
+var mapBitmap = null;
 setupLevel = function() {
 	var levelImg = new Image();
 	levelImg.onload = function() {
+      var x, y, xx, yy,
+      w = (canvas.width / 128),
+      h = (canvas.height / 64),
+      ww = w * 0.8,
+      hh = h * 0.8;
+   
 		var levelInfoCanvas = document.createElement('canvas');
 		levelInfoCanvas.width = levelImg.width;
 		levelInfoCanvas.height = levelImg.height;
+      
+      var levelCanvas = document.createElement('canvas');
+      //var levelCanvas = document.getElementById("levelCanvas");
+		levelCanvas.width = levelImg.width * w;
+		levelCanvas.height = levelImg.height * h;
+      var levelCtx = levelCanvas.getContext("2d");
 
 		var levelInfoCtx = levelInfoCanvas.getContext("2d");
 		levelInfoCtx.drawImage(levelImg, 0, 0);
 		var levelData = levelInfoCtx.getImageData(0, 0, levelImg.width, levelImg.height);
 		level = [];
 		
-		var x, y;
+      levelCtx.fillStyle = 'rgb(118,140,101)'; //Calculator green
+      levelCtx.fillRect(0, 0, levelCanvas.width, levelCanvas.height);
+      levelCtx.fillStyle = 'black';
+      
+		
 		for (var i = 0; i < levelData.data.length; i+=4) {
 			x = (i/4) % levelData.width;
 			y = Math.floor((i/4 / levelData.width));
+         xx = x * w;
+         yy = y * h;
 			if (!(x in level)) {
 				level[x] = [];
 			}
 			if (levelData.data[i] == 0 && levelData.data[i+1] == 0 && levelData.data[i+2] == 0) {
 				level[x][y] = 1;
+            levelCtx.fillRect(xx, yy, ww, hh);
 			} else {
 				level[x][y] = 0;
 			}
 		}
+      
+      mapBitmap = levelCtx.getImageData(0, 0, levelCanvas.width, levelCanvas.height);
 		startLoop();
 	};
-	levelImg.src = 'images/level1.png';
+	levelImg.src = '../images/level1.png';
 };
 
 var k_w = false,
@@ -174,21 +202,24 @@ keypressed = function(event) {
 
 var mouseDown = false;
 mouseMove = function(e) {
-	if (mouseDown) {
-		//get position relative to bitmap
-		var x = e.layerX - canvas.offsetParent.offsetLeft; 
+   //get position relative to bitmap
+   var x = e.layerX - canvas.offsetParent.offsetLeft; 
 
-		//Convert to center coords
-		x = -((canvas.width/2) - x);
-
-		if (x > 0) {
-			k_d = mouseDown;
-		} else {
-			k_a = mouseDown;
-		}
-	}
+   //Convert to center coords
+   x = -((canvas.width/2) - x);
+   console.log(x);
+   if (x > 0) {
+      if (mouseDown) {
+         k_d = mouseDown;
+      }
+      k_a = false;
+   } else {
+      if (mouseDown) {
+         k_a = mouseDown;
+      }
+      k_d = false;
+   }
 };
-
 
 mouseEvents = function (e) {
    mouseDown = e.type == "mousedown";
@@ -229,9 +260,9 @@ touchHandler = function(event) {
 
 
 setupUserEvents = function() {
-	canvas.onmousedown = mouseEvents;
-	canvas.onmouseup = mouseEvents;
-	canvas.onmousemove = mouseMove;
+	//canvas.onmousedown = mouseEvents;
+	//canvas.onmouseup = mouseEvents;
+	//canvas.onmousemove = mouseMove;
 	document.onkeydown=keypressed;
 	document.onkeyup=keypressed;
 	try { document.addEventListener("touchstart",  touchHandler, true); } catch(err) {  }
@@ -247,10 +278,10 @@ ctx = canvas.getContext("2d");
 var offset = {x: 0, y:0};
 var lastOffset = {x: 0, y:0};
 var car = {
-	x : -50,
-	y : 20,
-	angle : 0 * Math.PI,
-	speed : 1
+	x : 353,
+	y : 960,
+	angle : 3/2 * Math.PI,
+	speed : 10
 };
 
 
