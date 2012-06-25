@@ -6,16 +6,16 @@ update = function(dt) {
 		car.angle -= car.speed * dt/10;
 	}
 	//Breaks
-	if (k_s) {
-		car.speed -= 3*dt;
+	if (k_s && car.speed > 0) {
+		car.speed = car.speed * Math.pow(0.5, dt);
 	} else {
 		car.speed += dt;
 	}
 	car.x += Math.cos(car.angle) * car.speed * dt;
 	car.y += Math.sin(car.angle) * car.speed * dt;
 	
-	offset.x = Math.round(car.x);
-	offset.y = Math.round(-car.y);
+	offset.x = Math.round(car.x) * canvas.width / 128;
+	offset.y = Math.round(-car.y) * canvas.height / 64;
 	
 	drawLevel(dt);
 };
@@ -81,7 +81,7 @@ mainGameLoop = function() {
    var now = Date.now();
 	var dt = now - lastTime;
    lastTime = now;
-	update(dt/700);
+	update(dt/1000);
 };
 
 startLoop = function() {
@@ -278,8 +278,8 @@ ctx = canvas.getContext("2d");
 var offset = {x: 0, y:0};
 var lastOffset = {x: 0, y:0};
 var car = {
-	x : 353,
-	y : 960,
+	x : 44,
+	y : 120,
 	angle : 3/2 * Math.PI,
 	speed : 10
 };
