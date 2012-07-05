@@ -1,7 +1,18 @@
-var INITIAL_SPEED = 7;
+var INITIAL_SPEED = 15;
+var MINIMUM_SPEED = 6;
 var CALCULATOR_GREEN = 'rgb(118,140,101)';
+var LEVEL_IMAGE = 'images/level1.png';
+var INTRO_IMAGE = 'images/intro.png';
+
+var GAME_MODES = {
+    MENU : 0,
+    GAME : 1
+};
 
 update = function(dt) {
+	if (!drawer.isReady(LEVEL_IMAGE)) {
+		return;
+	}
 	//Turn left or right
 	if (k_a && !k_d) {
 		car.angle -= car.speed * dt/10;
@@ -21,7 +32,8 @@ update = function(dt) {
 	if (car.x > level.length-1) { car.x = level.length-1; }
 	if (car.y < 0) { car.y = 0; }
 	if (car.y > level[0].length-1) { car.y = level[0].length-1; }
-	if (car.speed < INITIAL_SPEED / 2) { car.speed = INITIAL_SPEED / 2; }
+	if (car.speed < MINIMUM_SPEED && !k_s) { restartCar(); return;}
+	if (car.speed < MINIMUM_SPEED) { car.speed = MINIMUM_SPEED; }
 	
 	offset.x = Math.round(-car.x) * canvas.width / 128;
 	offset.y = Math.round(-car.y) * canvas.height / 64;
@@ -36,49 +48,170 @@ update = function(dt) {
 		car.color = 'black';
 	}
 	
-	drawLevel(dt);
+	drawer.draw(LEVEL_IMAGE, offset);
 };
 
-drawLevel = function(dt) {
-	//Only redraw on change. 
-	if (offset.x === lastOffset.x && offset.y === lastOffset.y) {
-		return;
+Drawer = function() {
+	this.init = function() {
+		this.lastDraw = {x: null, y: null, image: null};
+		this.w = (canvas.width / 128);
+		this.h = (canvas.height / 64);
+		this.ww = this.w * 0.8;
+		this.hh = this.h * 0.8;	 
+		this.images = [];
+	};
+	
+	this.drawBitmap = function(bitmap, offset) {
+		//Only redraw on change. 
+		if (offset.x === this.lastDraw.x && offset.y === this.lastDraw.y && bitmap === this.lastDraw.image) {
+			return;
+		}
+		
+		this.lastDraw.x = offset.x;
+		this.lastDraw.y = offset.y;
+		this.lastDraw.image = bitmap;
+			
+		ctx.fillStyle = CALCULATOR_GREEN; //Calculator green
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+		ctx.fillStyle = 'black';
+
+		ctx.putImageData(bitmap, offset.x + canvas.width/2, offset.y + canvas.height/2);
+		ctx.fillStyle = car.color;
+		ctx.fillRect(64 * this.w, 32 * this.h, this.ww, this.hh);
+	};
+	
+	this.isReady = function(filename) {
+		if (filename in this.images) {
+			if (this.images[filename].ready)
+			{
+				return true;
+			}
+		}
+		else
+		{
+			this.images[filename] = {
+				filename: filename,
+				ready: false,
+				bitmap: null
+			};
+			console.log(this.images);
+			this.loadImage(filename);
+		}
+		return false;
 	}
 	
-	lastOffset.x = offset.x;
-	lastOffset.y = offset.y;
-		
-	ctx.fillStyle = CALCULATOR_GREEN; //Calculator green
-	ctx.fillRect(0, 0, canvas.width, canvas.height);
-	ctx.fillStyle = 'black';
+	this.draw = function(filename, offset) {
+		if (this.isReady(filename)) {
+			this.drawBitmap(this.images[filename].bitmap, offset);
+			return true;
+		}
+		return false;
+	};
+	
+	this.loadImage = function(filename) {
+		var levelImg = new Image();
+		levelImg.onload = function() {
+			var x, y, xx, yy,
+			w = (canvas.width / 128),
+			h = (canvas.height / 64),
+			ww = w * 0.8,
+			hh = h * 0.8;
 
-	var xx = 0,
-	yy = 0,
-	x = 0, 
-	y = 0,
-	tx = 0, 
-	ty = 0,
-	w = (canvas.width / 128),
-	h = (canvas.height / 64),
-	ww = w * 0.8,
-	hh = h * 0.8;
-   
-	ctx.putImageData(mapBitmap, offset.x + canvas.width/2, offset.y + canvas.height/2);
-	ctx.fillStyle = car.color;
-	ctx.fillRect(64*w, 32*h, ww, hh);
+			var levelInfoCanvas = document.createElement('canvas');
+			levelInfoCanvas.width = levelImg.width;
+			levelInfoCanvas.height = levelImg.height;
 
+			var levelCanvas = document.createElement('canvas');
+			levelCanvas.width = levelImg.width * w;
+			levelCanvas.height = levelImg.height * h;
+			var levelCtx = levelCanvas.getContext("2d");
+
+			var levelInfoCtx = levelInfoCanvas.getContext("2d");
+			levelInfoCtx.drawImage(levelImg, 0, 0);
+			var levelData = levelInfoCtx.getImageData(0, 0, levelImg.width, levelImg.height);
+			level = [];
+
+			levelCtx.fillStyle = CALCULATOR_GREEN; //Calculator green
+			levelCtx.fillRect(0, 0, levelCanvas.width, levelCanvas.height);
+			levelCtx.fillStyle = 'black';
+
+			var startPoint = {x:null,y:null};
+			var startDirectionPoint = {x:0,y:0};
+			for (var i = 0; i < levelData.data.length; i+=4) {
+				x = (i/4) % levelData.width;
+				y = Math.floor((i/4 / levelData.width));
+				xx = x * w;
+				yy = y * h;
+				if (!(x in level)) {
+					level[x] = [];
+				}
+				if (levelData.data[i] == 0 && levelData.data[i+1] == 0 && levelData.data[i+2] == 0) {
+					level[x][y] = 1;
+					levelCtx.fillRect(xx, yy, ww, hh);
+				} else if (levelData.data[i] == 255 && levelData.data[i+1] == 0 && levelData.data[i+2] == 0) {
+					startPoint.x = x;
+					startPoint.y = y;
+				} else if (levelData.data[i] == 0 && levelData.data[i+1] == 255 && levelData.data[i+2] == 0) {
+					startDirectionPoint.x = x;
+					startDirectionPoint.y = y;
+				} else {
+					level[x][y] = 0;
+				}
+			}
+			
+			if (startPoint.x != null && startPoint.y != null) {
+				car.x = startPoint.x;
+				car.y = startPoint.y;
+				if (startDirectionPoint.x == startPoint.x) {
+					if (startDirectionPoint.y > startPoint.y) {
+						car.angle = 0.5 * Math.PI;
+					} else {
+						car.angle = 1.5 * Math.PI;
+					}
+				} else if (startDirectionPoint.x > startPoint.x) {
+					car.angle = Math.PI;
+				} else {
+					car.angle = 0;
+				}
+				car.startPoint = startPoint;
+				car.startAngle = car.angle;
+			}
+		  
+			mapBitmap = levelCtx.getImageData(0, 0, levelCanvas.width, levelCanvas.height);
+			//Stupid inheritance. 
+			drawer.images[filename].bitmap = mapBitmap;
+			drawer.images[filename].ready = true;
+			
+		};
+		levelImg.src = filename;
+	};
+
+	
+	this.init();
 };
+
 
 var lastTime = Date.now();
 mainGameLoop = function() {
-   var now = Date.now();
+	var now = Date.now();
 	var dt = now - lastTime;
-   lastTime = now;
-	update(dt/1000);
+	lastTime = now;
+	
+	switch(gameMode)
+	{
+		case GAME_MODES.MENU:
+			drawer.draw(INTRO_IMAGE, {x: -canvas.width/2, y: -canvas.height/2});
+			//Preloading.
+			drawer.isReady(LEVEL_IMAGE);
+		break;
+		case GAME_MODES.RACING:
+			update(dt/1000);		
+		break;
+	}
 };
 
 startLoop = function() {
-var animFrame = window.requestAnimationFrame ||
+	var animFrame = window.requestAnimationFrame ||
                    window.webkitRequestAnimationFrame ||
                    window.mozRequestAnimationFrame    ||
                    window.oRequestAnimationFrame      ||
@@ -112,104 +245,56 @@ var animFrame = window.requestAnimationFrame ||
    }
 }
 
-var mapBitmap = null;
-setupLevel = function() {
-	var levelImg = new Image();
-	levelImg.onload = function() {
-		var x, y, xx, yy,
-		w = (canvas.width / 128),
-		h = (canvas.height / 64),
-		ww = w * 0.8,
-		hh = h * 0.8;
-
-		var levelInfoCanvas = document.createElement('canvas');
-		levelInfoCanvas.width = levelImg.width;
-		levelInfoCanvas.height = levelImg.height;
-
-		var levelCanvas = document.createElement('canvas');
-		levelCanvas.width = levelImg.width * w;
-		levelCanvas.height = levelImg.height * h;
-		var levelCtx = levelCanvas.getContext("2d");
-
-		var levelInfoCtx = levelInfoCanvas.getContext("2d");
-		levelInfoCtx.drawImage(levelImg, 0, 0);
-		var levelData = levelInfoCtx.getImageData(0, 0, levelImg.width, levelImg.height);
-		level = [];
-
-		levelCtx.fillStyle = CALCULATOR_GREEN; //Calculator green
-		levelCtx.fillRect(0, 0, levelCanvas.width, levelCanvas.height);
-		levelCtx.fillStyle = 'black';
-
-		var startPoint = {x:0,y:0};
-		var startDirectionPoint = {x:0,y:0};
-		for (var i = 0; i < levelData.data.length; i+=4) {
-			x = (i/4) % levelData.width;
-			y = Math.floor((i/4 / levelData.width));
-			xx = x * w;
-			yy = y * h;
-			if (!(x in level)) {
-				level[x] = [];
-			}
-			if (levelData.data[i] == 0 && levelData.data[i+1] == 0 && levelData.data[i+2] == 0) {
-				level[x][y] = 1;
-				levelCtx.fillRect(xx, yy, ww, hh);
-			} else if (levelData.data[i] == 255 && levelData.data[i+1] == 0 && levelData.data[i+2] == 0) {
-				startPoint.x = x;
-				startPoint.y = y;
-			} else if (levelData.data[i] == 0 && levelData.data[i+1] == 255 && levelData.data[i+2] == 0) {
-				startDirectionPoint.x = x;
-				startDirectionPoint.y = y;
-			} else {
-				level[x][y] = 0;
-			}
-		}
-		car.x = startPoint.x;
-		car.y = startPoint.y;
-		if (startDirectionPoint.x == startPoint.x) {
-			if (startDirectionPoint.y > startPoint.y) {
-				car.angle = 0.5 * Math.PI;
-			} else {
-				car.angle = 1.5 * Math.PI;
-			}
-		} else if (startDirectionPoint.x > startPoint.x) {
-			car.angle = Math.PI;
-		} else {
-			car.angle = 0;
-		}
-      
-		mapBitmap = levelCtx.getImageData(0, 0, levelCanvas.width, levelCanvas.height);
-		startLoop();
-	};
-	levelImg.src = 'images/level1.png';
-};
-
 var k_w = false,
 k_s = false,
 k_d = false,
 k_a = false;
 keypressed = function(event) {
-   switch(event.which)
-   {
-      case 38: // up
-         k_w = event.type == 'keydown';
-         k_s = false;
-         break;
-      case 39: // right
-         k_d = event.type == 'keydown';
-         k_a = false;
-         break;
-      case 40: // down
-         k_s = event.type == 'keydown';
-         k_w = false;
-         break;
-      case 37: // left
-         k_a = event.type == 'keydown';
-         k_d = false;
-         break;
-      default:
-         //log(event); 
-         break;
+	switch(event.which)
+	{
+		case 38: // up
+			k_w = event.type == 'keydown';
+			k_s = false;
+			break;
+		case 39: // right
+			k_d = event.type == 'keydown';
+			k_a = false;
+		break;
+		case 40: // down
+			k_s = event.type == 'keydown';
+			k_w = false;
+		break;
+		case 37: // left
+			k_a = event.type == 'keydown';
+			k_d = false;
+		break;
+		case 13: // Enter
+			if (event.type == 'keyup') {
+				switch(gameMode)
+				{
+					case GAME_MODES.MENU:
+						restartCar();
+						gameMode = GAME_MODES.RACING;
+					break;
+					case GAME_MODES.RACING:
+						gameMode = GAME_MODES.MENU;
+					break;
+				}
+			}
+		break;
+		default:
+			console.log(event); 
+		break;
    }
+};
+
+restartCar = function() {
+	if (typeof(car.startPoint) !== 'undefined') {
+		car.x = car.startPoint.x;
+		car.y = car.startPoint.y;
+		car.angle = car.startAngle;
+		car.speed = INITIAL_SPEED;
+	}
 };
 
 var mouseDown = false;
@@ -288,7 +373,6 @@ var canvas = document.getElementById("canvas"),
 ctx = canvas.getContext("2d");
 
 var offset = {x: 0, y: 0};
-var lastOffset = {x: null, y: null};
 var car = {
 	x : 0,
 	y : 0,
@@ -297,6 +381,8 @@ var car = {
 	color : 'black'
 };
 
+var gameMode = GAME_MODES.MENU;
 
-setupLevel();
+drawer = new Drawer();
+startLoop();
 setupUserEvents();
